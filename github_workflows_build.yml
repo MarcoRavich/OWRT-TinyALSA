@@ -1,0 +1,45 @@
+name: Build TinyALSA for OpenWRT
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install build dependencies
+      run: sudo apt-get update && sudo apt-get install -y git build-essential wget unzip
+
+    - name: Fetch TinyALSA source
+      run: |
+        git clone https://github.com/tinyalsa/tinyalsa.git src-tinyalsa
+
+    - name: Download OpenWRT Toolchain
+      run: |
+        # Example for OpenWRT 22.03.0, mipsel_24kc, change as needed!
+        wget https://downloads.openwrt.org/releases/22.03.0/targets/ramips/mt76x8/openwrt-sdk-22.03.0-ramips-mt76x8_gcc-11.2.0_musl.Linux-x86_64.tar.xz
+        tar xf openwrt-sdk-22.03.0-ramips-mt76x8_gcc-11.2.0_musl.Linux-x86_64.tar.xz
+
+    - name: Build TinyALSA
+      run: |
+        export STAGING_DIR=$PWD/openwrt-sdk-22.03.0-ramips-mt76x8/staging_dir
+        export PATH=$STAGING_DIR/toolchain-mipsel_24kc_gcc-11.2.0_musl/bin:$PATH
+        cd src-tinyalsa
+        make CC=mipsel-openwrt-linux-gcc
+        file tinycap  # Just to show what was built
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: tinyalsa-openwrt
+        path: |
+          src-tinyalsa/tinycap
+          src-tinyalsa/tinymix

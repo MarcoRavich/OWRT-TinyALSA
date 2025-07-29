@@ -26,26 +26,32 @@ jobs:
       run: |
         wget https://downloads.openwrt.org/releases/24.10.2/targets/bcm27xx/bcm2710/openwrt-sdk-24.10.2-bcm27xx-bcm2710_gcc-13.3.0_musl.Linux-x86_64.tar.zst
         tar --use-compress-program=unzstd -xvf openwrt-sdk-24.10.2-bcm27xx-bcm2710_gcc-13.3.0_musl.Linux-x86_64.tar.zst
+        echo "After extraction, SDK directories:"
+        ls -lh
 
-    - name: Discover toolchain and compiler prefix
+    - name: Discover SDK directory and toolchain
+      id: sdkinfo
       run: |
-        echo "Listing toolchain directories:"
-        ls -lh openwrt-sdk-24.10.2-bcm27xx-bcm2710/staging_dir | grep toolchain
-        # List compiler binaries
-        find openwrt-sdk-24.10.2-bcm27xx-bcm2710/staging_dir/ -type f -name "*-gcc"
-        # Save the first found compiler to a variable
-        export CC_BIN=$(find openwrt-sdk-24.10.2-bcm27xx-bcm2710/staging_dir/ -type f -name "*-gcc" | grep aarch64 | head -n1)
-        echo "Using compiler: $CC_BIN"
-        echo "Compiler path: $(dirname $CC_BIN)"
-        echo "export CC_BIN=$CC_BIN" >> $GITHUB_ENV
-        echo "export TOOLCHAIN_PATH=$(dirname $CC_BIN)" >> $GITHUB_ENV
+        # Find the actual SDK directory
+        SDKDIR=$(ls -d openwrt-sdk-* | head -n1)
+        echo "SDKDIR=$SDKDIR"
+        echo "SDKDIR=$SDKDIR" >> $GITHUB_ENV
+
+        # Find cross-compiler binary and its path
+        CROSS_GCC=$(find $SDKDIR/staging_dir/ -type f -name "*-gcc" | grep aarch64 | head -n1)
+        TOOLCHAIN_PATH=$(dirname $CROSS_GCC)
+        CC_BIN=$(basename $CROSS_GCC)
+        echo "TOOLCHAIN_PATH=$TOOLCHAIN_PATH"
+        echo "CC_BIN=$CC_BIN"
+        echo "TOOLCHAIN_PATH=$TOOLCHAIN_PATH" >> $GITHUB_ENV
+        echo "CC_BIN=$CC_BIN" >> $GITHUB_ENV
 
     - name: Build TinyALSA for Raspberry Pi 3B+ (64-bit)
       run: |
         export PATH=$TOOLCHAIN_PATH:$PATH
         cd src-tinyalsa
-        make CC=$(basename $CC_BIN)
-        file tinycap  # Show result
+        make CC=$CC_BIN
+        file tinycap || true  # Show result if built
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4

@@ -1,0 +1,46 @@
+name: Build TinyALSA for OpenWRT Raspberry Pi 3B+ (64-bit, 24.10.2)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install build dependencies
+      run: sudo apt-get update && sudo apt-get install -y git build-essential wget unzip
+
+    - name: Fetch TinyALSA source
+      run: |
+        git clone https://github.com/tinyalsa/tinyalsa.git src-tinyalsa
+
+    - name: Download OpenWRT SDK for Raspberry Pi 3B+ (64-bit, 24.10.2)
+      run: |
+        wget https://downloads.openwrt.org/releases/24.10.2/targets/bcm27xx/bcm2710/openwrt-sdk-24.10.2-bcm27xx-bcm2710_gcc-13.2.0_musl_aarch64.Linux-x86_64.tar.xz
+        tar xf openwrt-sdk-24.10.2-bcm27xx-bcm2710_gcc-13.2.0_musl_aarch64.Linux-x86_64.tar.xz
+
+    - name: Build TinyALSA for Raspberry Pi 3B+ (64-bit)
+      run: |
+        export STAGING_DIR=$PWD/openwrt-sdk-24.10.2-bcm27xx-bcm2710/staging_dir
+        export TOOLCHAIN=$STAGING_DIR/toolchain-aarch64_cortex-a53_gcc-13.2.0_musl
+        export PATH=$TOOLCHAIN/bin:$PATH
+        export CC=aarch64-openwrt-linux-gcc
+        cd src-tinyalsa
+        make CC=$CC
+        file tinycap  # Show result
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: tinyalsa-openwrt-rpi3bplus-64bit-24.10.2
+        path: |
+          src-tinyalsa/tinycap
+          src-tinyalsa/tinymix

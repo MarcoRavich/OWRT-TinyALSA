@@ -1,4 +1,4 @@
-name: Build TinyALSA for OpenWRT Raspberry Pi 3B+ (64-bit, 24.10.2)
+name: Build TinyALSA for OpenWRT RPi 3B+ (64-bit, 24.10.2)
 
 on:
   push:
@@ -10,48 +10,50 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
     - name: Install build dependencies
-      run: sudo apt-get update && sudo apt-get install -y git build-essential wget unzip zstd
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git build-essential wget zstd
 
     - name: Fetch TinyALSA source
       run: |
         git clone https://github.com/tinyalsa/tinyalsa.git src-tinyalsa
 
-    - name: Download and extract OpenWRT SDK for Raspberry Pi 3B+ (64-bit, 24.10.2)
+    - name: Download and extract OpenWRT SDK
       run: |
         wget https://downloads.openwrt.org/releases/24.10.2/targets/bcm27xx/bcm2710/openwrt-sdk-24.10.2-bcm27xx-bcm2710_gcc-13.3.0_musl.Linux-x86_64.tar.zst
         tar --use-compress-program=unzstd -xvf openwrt-sdk-24.10.2-bcm27xx-bcm2710_gcc-13.3.0_musl.Linux-x86_64.tar.zst
-        echo "After extraction, SDK directories:"
-        ls -lh
+        echo "Extracted SDK folders:"
+        ls -l
 
-    - name: Discover SDK directory and toolchain
-      id: sdkinfo
+    - name: Discover and export toolchain
+      id: toolchain
       run: |
-        # Find the actual SDK directory
         SDKDIR=$(ls -d openwrt-sdk-* | head -n1)
         echo "SDKDIR=$SDKDIR"
+        TOOLCHAIN_DIR=$(find $SDKDIR/staging_dir/ -maxdepth 1 -type d -name "toolchain-aarch64*" | head -n1)
+        echo "TOOLCHAIN_DIR=$TOOLCHAIN_DIR"
+        CROSS_GCC=$(find $TOOLCHAIN_DIR/bin/ -type f -name "*gcc" | grep "aarch64" | head -n1)
+        CROSS_PREFIX=$(basename $CROSS_GCC | sed 's/-gcc$//')
+        echo "CROSS_GCC=$CROSS_GCC"
+        echo "CROSS_PREFIX=$CROSS_PREFIX"
         echo "SDKDIR=$SDKDIR" >> $GITHUB_ENV
+        echo "TOOLCHAIN_DIR=$TOOLCHAIN_DIR" >> $GITHUB_ENV
+        echo "CROSS_GCC=$CROSS_GCC" >> $GITHUB_ENV
+        echo "CROSS_PREFIX=$CROSS_PREFIX" >> $GITHUB_ENV
 
-        # Find cross-compiler binary and its path
-        CROSS_GCC=$(find $SDKDIR/staging_dir/ -type f -name "*-gcc" | grep aarch64 | head -n1)
-        TOOLCHAIN_PATH=$(dirname $CROSS_GCC)
-        CC_BIN=$(basename $CROSS_GCC)
-        echo "TOOLCHAIN_PATH=$TOOLCHAIN_PATH"
-        echo "CC_BIN=$CC_BIN"
-        echo "TOOLCHAIN_PATH=$TOOLCHAIN_PATH" >> $GITHUB_ENV
-        echo "CC_BIN=$CC_BIN" >> $GITHUB_ENV
-
-    - name: Build TinyALSA for Raspberry Pi 3B+ (64-bit)
+    - name: Build TinyALSA
       run: |
-        export PATH=$TOOLCHAIN_PATH:$PATH
+        export PATH=$TOOLCHAIN_DIR/bin:$PATH
         cd src-tinyalsa
-        make CC=$CC_BIN
-        file tinycap || true  # Show result if built
+        # Use discovered cross-compiler prefix
+        make CROSS_COMPILE=$CROSS_PREFIX-
+        file tinycap || true
+        file tinymix || true
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4

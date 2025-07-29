@@ -27,14 +27,24 @@ jobs:
         wget https://downloads.openwrt.org/releases/24.10.2/targets/bcm27xx/bcm2710/openwrt-sdk-24.10.2-bcm27xx-bcm2710_gcc-13.3.0_musl.Linux-x86_64.tar.zst
         tar --use-compress-program=unzstd -xvf openwrt-sdk-24.10.2-bcm27xx-bcm2710_gcc-13.3.0_musl.Linux-x86_64.tar.zst
 
+    - name: Discover toolchain and compiler prefix
+      run: |
+        echo "Listing toolchain directories:"
+        ls -lh openwrt-sdk-24.10.2-bcm27xx-bcm2710/staging_dir | grep toolchain
+        # List compiler binaries
+        find openwrt-sdk-24.10.2-bcm27xx-bcm2710/staging_dir/ -type f -name "*-gcc"
+        # Save the first found compiler to a variable
+        export CC_BIN=$(find openwrt-sdk-24.10.2-bcm27xx-bcm2710/staging_dir/ -type f -name "*-gcc" | grep aarch64 | head -n1)
+        echo "Using compiler: $CC_BIN"
+        echo "Compiler path: $(dirname $CC_BIN)"
+        echo "export CC_BIN=$CC_BIN" >> $GITHUB_ENV
+        echo "export TOOLCHAIN_PATH=$(dirname $CC_BIN)" >> $GITHUB_ENV
+
     - name: Build TinyALSA for Raspberry Pi 3B+ (64-bit)
       run: |
-        export STAGING_DIR=$PWD/openwrt-sdk-24.10.2-bcm27xx-bcm2710/staging_dir
-        export TOOLCHAIN=$STAGING_DIR/toolchain-aarch64_cortex-a53_gcc-13.3.0_musl
-        export PATH=$TOOLCHAIN/bin:$PATH
-        export CC=aarch64-openwrt-linux-gcc
+        export PATH=$TOOLCHAIN_PATH:$PATH
         cd src-tinyalsa
-        make CC=$CC
+        make CC=$(basename $CC_BIN)
         file tinycap  # Show result
 
     - name: Upload artifacts
